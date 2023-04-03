@@ -8,6 +8,9 @@ pub struct MEM{
 }
 
 impl MEM{
+    pub fn new()->MEM{
+        MEM { data:[0;MAX_MEM] }
+    }
     pub fn init(&mut self){
         self.data = [0;MAX_MEM];
     }

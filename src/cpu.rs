@@ -4,7 +4,7 @@ use crate::MEM;
 const MAX_MEM: usize = 1024 * 64;
 //operators
 pub const INS_LDA_IM: Byte = 0xA9; //load accumulator immediate
-pub const INS_LDA_ZP: Byte = 0xA5;
+pub const INS_LDA_ZP: Byte = 0xA5; //load accumulator zero page
 type Byte = u8;
 type Word = u16;
 pub struct CPU{
@@ -30,6 +30,14 @@ pub struct CPU{
 }
 
 impl CPU{
+    pub fn new ()->CPU{
+        CPU{pc :0xFFFC,
+        sp : 0x0100,
+        a: 0,
+        x: 0,
+        y: 0,
+        flags: 0b0000_0000}        
+    }
     pub fn reset (&mut self, mem: &mut MEM){
         self.pc = 0xFFFC;
         self.sp = 0x0100;
@@ -42,37 +50,41 @@ impl CPU{
         mem.init();
     }
 
-    pub fn fetch_byte(&mut self, cycles:&mut u32, mem: &mut MEM) -> Byte{
-        //assert!((self.pc as usize) >= 0);
-        assert!((self.pc as usize) < MAX_MEM);
-        assert!(*cycles >0);
+    fn fetch_byte(&mut self, cycles:&mut u32, mem: &MEM) -> Byte{
         let d: Byte = mem.data[self.pc as usize];
         self.pc += 1;
         *cycles = *cycles - 1;
         return d;
     }
 
+    fn read_byte(&mut self, cycles:&mut u32, mem: &MEM, zpa: Byte) -> Byte{
+        let d: Byte = mem.data[zpa as usize];
+        *cycles = *cycles - 1;
+        return d;
+    }    
+
     pub fn execute(&mut self,mut cycles: u32, mem: &mut MEM){
         while cycles > 0{
             let ins:Byte = self.fetch_byte(&mut cycles, mem);
             match ins {
-                //0_u8..=168_u8 => println!("others"),
                 INS_LDA_IM => {
-                    println!("------------------------------------------");
-                    println!("Instr. LOAD LDA {:x} at add. {:x} executed", ins, self.pc-1);                    
                     let value:Byte = self.fetch_byte(&mut cycles, mem);
                     self.a = value;
-                    if self.a == 0 { self.set_z()};
-                    if self.a & 0b1000_0000 > 0 {self.set_n()};
-                    println!("Value {:x} at add. {:x} loaded", value, self.pc-1);
-                    println!("current PC is {:x}", self.pc);
-                    println!("flags state {:b}",self.flags);
-                    println!("------------------------------------------");
+                    self.lda_set_status();
                 },
-                //170_u8..=u8::MAX => println!("others"),
+                INS_LDA_ZP =>{
+                    let zpa:Byte = self.fetch_byte(&mut cycles, mem);
+                    self.a = self.read_byte(&mut cycles, mem, zpa);
+                    self.lda_set_status();
+                }
                 _ => println!("Instr. {:x} at add. {:x} not handled", ins, self.pc-1),
             }
         }
+    }
+
+    pub fn lda_set_status(&mut self){
+        if self.a == 0 { self.set_z()};
+        if self.a & 0b1000_0000 > 0 {self.set_n()};
     }
 
     pub fn set_n(&mut self){ self.flags |= 0b1000_0000;}
