@@ -2,16 +2,29 @@ use std;
 
 type Byte = u8;
 type Word = u16;
+const MAX_MEM: usize = 1024 * 64;
 
+//operators
+const INS_LDA_IM: Byte = 0xA9;
+
+struct MEM{
+    data: [ Byte ; MAX_MEM ],
+}
+
+impl MEM{
+    fn init(&mut self){
+        self.data = [0;MAX_MEM];
+    }
+}
 struct CPU{
     
-    PC: Word, //accumulator
-    SP: Word, //stack pointer
+    pc: Word, //accumulator
+    sp: Word, //stack pointer
 
     //8bit registers
-    A: Byte,
-    X: Byte,
-    Y: Byte,
+    a: Byte,
+    x: Byte,
+    y: Byte,
 
     //flags
     flags: Byte, //NV_BDIZC
@@ -26,47 +39,77 @@ struct CPU{
 }
 
 impl CPU{
-    fn Reset (&mut self){
-        self.PC = 0xFFFC;
-        self.SP = 0x0100;
+    fn reset (&mut self, mem: &mut MEM){
+        self.pc = 0xFFFC;
+        self.sp = 0x0100;
 
-        self.A = 0;
-        self.X = 0;
-        self.Y = 0;
-
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
         self.flags = 0b0000_0000;
+
+        mem.init();
     }
 
-    fn SetN(&mut self){ self.flags |= 0b1000_0000;}
-    fn SetV(&mut self){ self.flags |= 0b0100_0000;}
-    fn SetB(&mut self){ self.flags |= 0b0001_0000;}
-    fn SetD(&mut self){ self.flags |= 0b0000_1000;}
-    fn SetI(&mut self){ self.flags |= 0b0000_0100;}
-    fn SetZ(&mut self){ self.flags |= 0b0000_0010;}
-    fn SetC(&mut self){ self.flags |= 0b0000_0001;}
+    fn fetch_byte(&mut self, cycles:&mut u32, mem: &mut MEM) -> Byte{
+        //assert!((self.pc as usize) >= 0);
+        assert!((self.pc as usize) < MAX_MEM);
+        assert!(*cycles >0);
+        let d: Byte = mem.data[self.pc as usize];
+        self.pc += 1;
+        *cycles = *cycles - 1;
+        return d;
+    }
 
-    fn ResetN(&mut self){ self.flags &= 0b0111_1111;}
-    fn ResetV(&mut self){ self.flags &= 0b1011_1111;}
-    fn ResetB(&mut self){ self.flags &= 0b1110_1111;}
-    fn ResetD(&mut self){ self.flags &= 0b1111_0111;}
-    fn ResetI(&mut self){ self.flags &= 0b1111_1011;}
-    fn ResetZ(&mut self){ self.flags &= 0b1111_1101;}
-    fn ResetC(&mut self){ self.flags &= 0b1111_1110;}
+    fn execute(&mut self,mut cycles: u32, mem: &mut MEM){
+        while cycles > 0{
+            let ins:Byte = self.fetch_byte(&mut cycles, mem);
+            match ins {
+                //0_u8..=168_u8 => println!("others"),
+                INS_LDA_IM => {
+                    let value:Byte = self.fetch_byte(&mut cycles, mem);
+                    self.a = value;
+                    if self.a == 0 { self.set_z()};
+                    if self.a & 0b1000_0000 > 0 {self.set_n()};
+                },
+                //170_u8..=u8::MAX => println!("others"),
+                _ => println!("others"),
+            }
+        }
+    }
+
+    fn set_n(&mut self){ self.flags |= 0b1000_0000;}
+    fn set_v(&mut self){ self.flags |= 0b0100_0000;}
+    fn set_b(&mut self){ self.flags |= 0b0001_0000;}
+    fn set_d(&mut self){ self.flags |= 0b0000_1000;}
+    fn set_i(&mut self){ self.flags |= 0b0000_0100;}
+    fn set_z(&mut self){ self.flags |= 0b0000_0010;}
+    fn set_c(&mut self){ self.flags |= 0b0000_0001;}
+
+    fn reset_n(&mut self){ self.flags &= 0b0111_1111;}
+    fn reset_v(&mut self){ self.flags &= 0b1011_1111;}
+    fn reset_b(&mut self){ self.flags &= 0b1110_1111;}
+    fn reset_d(&mut self){ self.flags &= 0b1111_0111;}
+    fn reset_i(&mut self){ self.flags &= 0b1111_1011;}
+    fn reset_z(&mut self){ self.flags &= 0b1111_1101;}
+    fn reset_c(&mut self){ self.flags &= 0b1111_1110;}
 
 }
 fn main() {
+    let mut mem = MEM { data:[0;MAX_MEM] }; //clear memory for mem_size
     let mut cpu = CPU {
-        PC : 0xFFFC,
-        SP : 0x0100,
+        pc : 0xFFFC,
+        sp : 0x0100,
 
-        A: 0,
-        X: 0,
-        Y: 0,
+        a: 0,
+        x: 0,
+        y: 0,
 
-        flags: 0b0010_0000,
+        flags: 0b0000_0000,
     };
-    cpu.SetV();
-    cpu.ResetV();
-    cpu.Reset();
-    println!("Hello, world!");
+    cpu.reset(&mut mem);
+    cpu.execute(2, &mut mem);
+    cpu.execute(2, &mut mem);
+    //println!("Hello, world!");
+    //fetch video 1 at 20:17 line 50
 }
