@@ -5,6 +5,9 @@ const MAX_MEM: usize = 1024 * 64;
 //operators
 pub const INS_LDA_IM: Byte = 0xA9; //load accumulator immediate
 pub const INS_LDA_ZP: Byte = 0xA5; //load accumulator zero page
+pub const INS_LDA_ZPX: Byte = 0xB5; //load accumulator zero page,x
+pub const INS_JSR: Byte = 0x20;
+
 type Byte = u8;
 type Word = u16;
 pub struct CPU{
@@ -39,7 +42,7 @@ impl CPU{
         flags: 0b0000_0000}        
     }
     pub fn reset (&mut self, mem: &mut MEM){
-        self.pc = 0xFFFC;
+        self.pc = 0xFFCC;
         self.sp = 0x0100;
 
         self.a = 0;
@@ -53,15 +56,33 @@ impl CPU{
     fn fetch_byte(&mut self, cycles:&mut u32, mem: &MEM) -> Byte{
         let d: Byte = mem.data[self.pc as usize];
         self.pc += 1;
-        *cycles = *cycles - 1;
+        *cycles -= 1;
         return d;
     }
 
     fn read_byte(&mut self, cycles:&mut u32, mem: &MEM, zpa: Byte) -> Byte{
         let d: Byte = mem.data[zpa as usize];
-        *cycles = *cycles - 1;
+        *cycles -= 1;
         return d;
-    }    
+    }
+
+    fn fetch_word(&mut self, cycles:&mut u32, mem: &MEM) -> Word{
+        //652 is little endian
+        let mut d: Word = mem.data[self.pc as usize] as Word;
+        self.pc += 1;
+
+        d |= ( mem.data[self.pc as usize] as Word ) << 8;
+        self.pc += 1;
+
+        *cycles -= 2;        
+        return d;
+    }
+
+    fn write_word(&mut self, cycles:&mut u32, mem: &mut MEM, d: Word, add: usize){
+        mem.data[add] =  ( d & 0xFF ) as Byte;
+        mem.data[add+1] = ( d >> 8 ) as Byte ;
+        *cycles -= 2;
+    }
 
     pub fn execute(&mut self,mut cycles: u32, mem: &mut MEM){
         while cycles > 0{
@@ -76,6 +97,17 @@ impl CPU{
                     let zpa:Byte = self.fetch_byte(&mut cycles, mem);
                     self.a = self.read_byte(&mut cycles, mem, zpa);
                     self.lda_set_status();
+                },
+                INS_LDA_ZPX=>{
+                    let mut zpa:Byte = self.fetch_byte(&mut cycles, mem);
+                    zpa += self.x;
+                    cycles -= 1;
+                    self.a = self.read_byte(&mut cycles, mem, zpa);
+                    self.lda_set_status();
+                },
+                INS_JSR =>{
+                    let sa: Word = self.fetch_word(&mut cycles, mem);
+                    self.write_word(&mut cycles,mem, sa, self.sp as usize);
                 }
                 _ => println!("Instr. {:x} at add. {:x} not handled", ins, self.pc-1),
             }
