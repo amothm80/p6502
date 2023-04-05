@@ -7,7 +7,7 @@ use crate::cpu::CPU;
 type Byte = u8;
 type Word = u16;
 const MAX_MEM: usize = 1024 * 64;
-
+//
 fn main() {
     //let mut mem = MEM { data:[0;MAX_MEM] }; //clear memory for mem_size
     let mut mem = MEM::new(); //clear memory for mem_size
